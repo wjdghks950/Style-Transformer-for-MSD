@@ -2,7 +2,8 @@ import math
 import torch
 from torch import nn
 import torch.nn.functional as F
-from utils import idx2onehot
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class StyleTransformer(nn.Module):
@@ -62,11 +63,9 @@ class StyleTransformer(nn.Module):
                 temperature
             )
         else:
-            
             log_probs = []
             next_token = sos_token
             prev_states = None
-            
             for k in range(self.max_length):
                 log_prob, prev_states = self.decoder.incremental_forward(
                     next_token, memory,
@@ -74,22 +73,20 @@ class StyleTransformer(nn.Module):
                     temperature,
                     prev_states
                 )
-
                 log_probs.append(log_prob)
                 
                 if differentiable_decode:
                     next_token = self.embed(log_prob.exp(), pos_idx[:, k:k+1])
                 else:
                     next_token = self.embed(log_prob.argmax(-1), pos_idx[:, k:k+1])
-
                 #if (pred_tokens == self.eos_idx).max(-1)[0].min(-1)[0].item() == 1:
                 #    break
 
             log_probs = torch.cat(log_probs, 1)
-            
-            
+
         return log_probs
-    
+
+
 class Discriminator(nn.Module):
     def __init__(self, config, vocab):
         super(Discriminator, self).__init__()
@@ -136,7 +133,6 @@ class Discriminator(nn.Module):
         logits = self.classifier(encoded_features[:, 0])
 
         return F.log_softmax(logits, -1)
-        
         
     
 class Encoder(nn.Module):

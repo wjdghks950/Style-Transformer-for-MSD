@@ -3,7 +3,7 @@ from nltk.translate.bleu_score import sentence_bleu
 
 import fasttext
 import pkg_resources
-import kenlm
+# import kenlm
 import math
 
 
@@ -12,32 +12,31 @@ class Evaluator(object):
     def __init__(self):
         resource_package = __name__
 
-        yelp_acc_path = 'acc_yelp.bin'
-        yelp_ppl_path = 'ppl_yelp.binary'
+        # yelp_acc_path = 'acc_yelp.bin'
+        # yelp_ppl_path = 'ppl_yelp.binary'
         yelp_ref0_path = 'yelp.refs.0'
         yelp_ref1_path = 'yelp.refs.1'
 
-        
-        yelp_acc_file = pkg_resources.resource_stream(resource_package, yelp_acc_path)
-        yelp_ppl_file = pkg_resources.resource_stream(resource_package, yelp_ppl_path)
+        # yelp_acc_file = pkg_resources.resource_stream(resource_package, yelp_acc_path)
+        # yelp_ppl_file = pkg_resources.resource_stream(resource_package, yelp_ppl_path)
         yelp_ref0_file = pkg_resources.resource_stream(resource_package, yelp_ref0_path)
         yelp_ref1_file = pkg_resources.resource_stream(resource_package, yelp_ref1_path)
 
-        
         self.yelp_ref = []
         with open(yelp_ref0_file.name, 'r') as fin:
-            self.yelp_ref.append(fin.readlines())
+            self.yelp_ref.append(fin.readlines())  # Positive refs
         with open(yelp_ref1_file.name, 'r') as fin:
-            self.yelp_ref.append(fin.readlines())
-        self.classifier_yelp = fasttext.load_model(yelp_acc_file.name)
-        self.yelp_ppl_model = kenlm.Model(yelp_ppl_file.name)
+            self.yelp_ref.append(fin.readlines())  # Negative refs
+        # self.classifier_yelp = fasttext.load_model(yelp_acc_file.name)  # TODO: Need to replace this classifier
+        # self.yelp_ppl_model = kenlm.Model(yelp_ppl_file.name)
         
     def yelp_style_check(self, text_transfered, style_origin):
         text_transfered = ' '.join(word_tokenize(text_transfered.lower().strip()))
         if text_transfered == '':
             return False
-        label = self.classifier_yelp.predict([text_transfered])
-        style_transfered = label[0][0] == '__label__positive'
+        # label = self.classifier_yelp.predict([text_transfered])  # TODO: Need to follow the replacement of `self.classifier_yelp`
+        # style_transfered = label[0][0] == '__label__positive'
+        style_transfered = 1
         return (style_transfered != style_origin)
 
     def yelp_acc_b(self, texts, styles_origin):
@@ -70,7 +69,7 @@ class Evaluator(object):
         return sum / n
 
     def yelp_ref_bleu_0(self, texts_neg2pos):
-        assert len(texts_neg2pos) == 500, 'Size of input differs from human reference file(500)!'
+        # assert len(texts_neg2pos) == 500, 'Size of input differs from human reference file(500)!'
         sum = 0
         n = 500
         for x, y in zip(self.yelp_ref[0], texts_neg2pos):
@@ -78,7 +77,7 @@ class Evaluator(object):
         return sum / n
 
     def yelp_ref_bleu_1(self, texts_pos2neg):
-        assert len(texts_pos2neg) == 500, 'Size of input differs from human reference file(500)!'
+        # assert len(texts_pos2neg) == 500, 'Size of input differs from human reference file(500)!'
         sum = 0
         n = 500
         for x, y in zip(self.yelp_ref[1], texts_pos2neg):
@@ -86,8 +85,8 @@ class Evaluator(object):
         return sum / n
 
     def yelp_ref_bleu(self, texts_neg2pos, texts_pos2neg):
-        assert len(texts_neg2pos) == 500, 'Size of input differs from human reference file(500)!'
-        assert len(texts_pos2neg) == 500, 'Size of input differs from human reference file(500)!'
+        # assert len(texts_neg2pos) == 500, 'Size of input differs from human reference file(500)!'
+        # assert len(texts_pos2neg) == 500, 'Size of input differs from human reference file(500)!'
         sum = 0
         n = 1000
         for x, y in zip(self.yelp_ref[0] + self.yelp_ref[1], texts_neg2pos + texts_pos2neg):
@@ -103,7 +102,8 @@ class Evaluator(object):
         for i, line in enumerate(texts_transfered):
             words += [word for word in line.split()]
             length += len(line.split())
-            score = self.yelp_ppl_model.score(line)
+            # score = self.yelp_ppl_model.score(line)  # TODO: need to replace the kenLM model with other library
+            score = 0.0  # TODO: Replace with kenLM model
             sum += score
         return math.pow(10, -sum / length)
 

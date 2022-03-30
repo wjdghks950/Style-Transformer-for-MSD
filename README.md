@@ -1,22 +1,19 @@
-# Style Transformer: Unpaired Text Style Transfer without Disentangled Latent Representation
+# Style Transformer for Expert-Laymen Style Transfer (on MSD Dataset)
 
-This folder contains the code for the paper [《Style Transformer: Unpaired Text Style Transfer without Disentangled Latent Representation》](https://arxiv.org/abs/1905.05621)
+This repository contains the codes for the paper [Style Transformer: Unpaired Text Style Transfer without Disentangled Latent Representation](https://arxiv.org/abs/1905.05621).
 
+The code has been revised to incorporate and train on the expert-laymen style transfer task dataset ([MSD dataset](https://aclanthology.org/2020.acl-main.100.pdf)).
 
+The following are the revisions made to the existing code base:
+1. Code refactoring to deal with each data instance and feature on a class-level (e.g., `MSDFeature`, `MSDExample`).
+2. Fine-tuned BERT-base model (`bert-base-uncased`) on the MSD training dataset to measure the **Style Accuracy** of the style-transferred sentence. This replaces the `fasttext` classifier originally used in the baseline code.
+3. Replaced `kenlm` with the `torch.exp(loss)` to calculate the perplexity of the generated sentence.
 
 ## Requirements
 
 pytorch >= 0.4.0
-
 torchtext >= 0.4.0
-
 nltk
-
-fasttext == 0.8.3
-
-kenlm
-
-
 
 ## Usage
 
@@ -54,22 +51,18 @@ The most of them are listed below:
 
 You can adjust them in the Config class from the ''main.py''.
 
-
-
-If you want to run the model, use the command:
+If you want to run the original Style Transformer model on Yelp and IMDB, use the following command:
 
 ```shell
-python main.py
+$ ./train.sh 0
 ```
+(0 simply stands for the CUDA gpu id (if there is one in your system))
 
+If you want to run the revised, MSD-version of Style Transformer model on MSD dataset, use the following command:
 
-
-
-
-To evaluation the model, we used Fasttext,  NLTK and KenLM toolkit to evaluate the style control, content preservation and fluency respectively. The evaluation related files for the Yelp dataset are placed in the ''evaluator'' folder. 
-
-Because the file "ppl_yelp.binary" is too big to upload, we exclude it from the "evaluator" folder. As a result, you can not evaluate the ppl score via evaluator. To solve this problem, you can use the KenLM toolkit to train a language model by yourself or use other script to evaluate it.
-
+```shell
+$ ./msd_train.sh 0
+```
 
 
 ## Outputs

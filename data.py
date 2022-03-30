@@ -78,7 +78,6 @@ class MSDDataset(Dataset):
         except Exception as e:
             print(e + "{} does not exist".format(os.path.join(data_dir, path)))
 
-        ''' # TODO: Revive when using Bert-based models for Style Transformer
         model_prefix = config.bert_model.split("-")[0].strip()
         if model_prefix == "bert":
             tokenizer = BertTokenizer.from_pretrained(config.bert_model, do_lower_case=config.do_lower_case)
@@ -91,13 +90,16 @@ class MSDDataset(Dataset):
 
         # Construct features out of examples (MSDExamples -> MSDFeatures)
         self.features = self._create_features_from_examples(self.examples, tokenizer)
-        '''
+
     def __len__(self):
         return len(self.img_labels)
 
     def __getitem__(self, idx):
         # Return a single MSDFeature upon function call
-        return self.features[idx]
+        input_ids = self.features[idx].input_ids
+        attention_mask = self.features[idx].input_mask
+        label = self.features[idx].label
+        return (input_ids, attention_mask, label)
 
     def _read_examples(self, path):
         examples = []

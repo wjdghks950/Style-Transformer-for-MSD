@@ -1,4 +1,5 @@
 import torch
+import neptune
 import time, logging, argparse
 from data import load_msd_dataset
 from models import StyleTransformer, Discriminator
@@ -18,13 +19,16 @@ class Config():
     pretrained_embed_path = './embedding/'
     device = torch.device('cuda' if True and torch.cuda.is_available() else 'cpu')
     discriminator_method = 'Cond'  # 'Multi' or 'Cond'
+    task = "msd"  # Tasks \in ["msd", "sentiment"]
+
     load_pretrained_embed = False
+    train_styleclf = False
     min_freq = 3
     max_length = 128
     embed_size = 256
     d_model = 256
     h = 4
-    num_styles = 2
+    num_styles = 2  # Styles \in {Expert, Laymen}
     num_classes = num_styles + 1 if discriminator_method == 'Multi' else 2
     num_layers = 4
     batch_size = 8
@@ -35,7 +39,7 @@ class Config():
     iter_F = 5
     F_pretrain_iter = 500
     log_steps = 500
-    eval_steps = 25
+    eval_steps = 1000
     learned_pos_embed = True
     dropout = 0
     drop_rate_config = [(1, 0)]
@@ -80,6 +84,7 @@ def main():
                         default=8,
                         type=int,
                         help="Total batch size for eval.")
+    parser.add_argument("--logging_steps", type=int, default=1000, help="Logging steps during the training iterations.")
     parser.add_argument("--local_rank",
                         type=int,
                         default=-1,
@@ -108,6 +113,7 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     # # TODO: Implement the model part - Which model to use? Can BERT-based models (e.g., ALBERT) be used in a generative framework?
+    # # TODO: How about BART?
     # if args.init_weights_dir:
     #     model = BertTransformer.from_pretrained(args.init_weights_dir)
     # else:
@@ -126,7 +132,14 @@ def main():
     model_F = StyleTransformer(config, vocab).to(config.device)
     model_D = Discriminator(config, vocab).to(config.device)
     print(config.discriminator_method)
-    
+
+    if args.logging_steps > 0:
+        neptune.init(
+            project_qualified_name="wjdghks950/StyleTransfer",
+            api_token="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiI2NzQ2OTM5ZC02N2Y5LTQ2NDEtYWU3NS0yNWY3YWI1NDgzMjEifQ==")
+        neptune.create_experiment(name=" ({}) - MSD Style Transformer".format(args.bert_model))
+        neptune.append_tag("StyleTransformer", "Expert-Laymen")
+
     # train(config, vocab, model_F, model_D, train_iters, dev_iters, test_iters)
     train(config, vocab, model_F, model_D, train_iters, test_iters, test_iters)
     

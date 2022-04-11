@@ -37,7 +37,6 @@ class MSDExample(object):
             s += "\nLABEL: {}".format(self.label)
         if self.concepts:
             s += "\nTERM: {} (range - {})".format(self.concepts[0]['term'], self.concepts[0]['range'])
-        if self.cui:
             s += "\nCUI: ({})".format(self.concepts[0]['cui'])
         return s
 
@@ -64,7 +63,6 @@ class MSDFeature(object):
             s += "\nLABEL: {}".format(self.label)
         if self.concepts:
             s += "\nTERM: {} (range - {})".format(self.concepts[0]['term'], self.concepts[0]['range'])
-        if self.cui:
             s += "\nCUI: ({})\n".format(self.concepts[0]['cui'])
         return s
 
@@ -78,28 +76,30 @@ class MSDDataset(Dataset):
         except Exception as e:
             print(e + "{} does not exist".format(os.path.join(data_dir, path)))
 
-        model_prefix = config.bert_model.split("-")[0].strip()
-        if model_prefix == "bert":
-            tokenizer = BertTokenizer.from_pretrained(config.bert_model, do_lower_case=config.do_lower_case)
-        elif model_prefix == "roberta":
-            tokenizer = RobertaTokenizer.from_pretrained(config.bert_model)
-        elif model_prefix == "albert":
-            tokenizer = AlbertTokenizer.from_pretrained('albert-xlarge')
-        else:
-            raise AttributeError("Specified attribute {} is not found".format(config.bert_model))
+        if config.train_styleclf:  # Activate when training the bert-based StyleClassifier
+            model_prefix = config.bert_model.split("-")[0].strip()
+            if model_prefix == "bert":
+                tokenizer = BertTokenizer.from_pretrained(config.bert_model, do_lower_case=config.do_lower_case)
+            elif model_prefix == "roberta":
+                tokenizer = RobertaTokenizer.from_pretrained(config.bert_model)
+            elif model_prefix == "albert":
+                tokenizer = AlbertTokenizer.from_pretrained('albert-xlarge')
+            else:
+                raise AttributeError("Specified attribute {} is not found".format(config.bert_model))
 
-        # Construct features out of examples (MSDExamples -> MSDFeatures)
-        self.features = self._create_features_from_examples(self.examples, tokenizer)
+            # Construct features out of examples (MSDExamples -> MSDFeatures)
+            features = self._create_features_from_examples(self.examples, tokenizer, mode=mode)
+
+            self.input_ids = torch.tensor([f.input_ids for f in features]).long()
+            self.input_masks = torch.tensor([f.input_mask for f in features]).long()
+            self.labels = torch.tensor([f.label for f in features]).long()
 
     def __len__(self):
-        return len(self.img_labels)
+        return len(self.examples)
 
     def __getitem__(self, idx):
         # Return a single MSDFeature upon function call
-        input_ids = self.features[idx].input_ids
-        attention_mask = self.features[idx].input_mask
-        label = self.features[idx].label
-        return (input_ids, attention_mask, label)
+        return (self.input_ids[idx], self.input_masks[idx], self.labels[idx])
 
     def _read_examples(self, path):
         examples = []
@@ -115,19 +115,18 @@ class MSDDataset(Dataset):
             raise FileNotFoundError("Path does not exist")
         return examples
 
-    def _create_features_from_examples(self, examples, tokenizer):
+    def _create_features_from_examples(self, examples, tokenizer, mode="train"):
         '''
         examples - list of MSDExample
         tokenizer - One of `transformers` pre-trained tokenizers (e.g., BertTokenizer)
         '''
-        # TODO: Need to implement this method to process MSDExample to MSDFeature
         logger.info('Creating features from `examples (MSDExample -> MSDFeatures)`')
         logger.info('Using [ {} ] tokenizer'.format(self.config.bert_model))
 
         max_seq_len = self.config.max_seq_len
         enable_toks = True
         features = []
-        for (example_idx, example) in enumerate(tqdm(examples)):
+        for (example_idx, example) in tqdm(enumerate(examples), total=len(examples), desc="[{}] Convert MSDExample to MSDFeature".format(mode)):
             tokens = tokenizer.tokenize(example.text)
             tokenizer_out = tokenizer(example.text)
             input_ids = tokenizer_out['input_ids']
@@ -136,8 +135,10 @@ class MSDDataset(Dataset):
 
             # pad by 0 to fill the `max_seq_len`
             input_ids = input_ids + [0] * (max_seq_len - len(input_ids))
-            input_mask = input_mask + [0] * (max_seq_len - len(input_ids))
-            token_type_ids = token_type_ids + [0] * (max_seq_len - len(input_ids))
+            input_mask = input_mask + [0] * (max_seq_len - len(input_mask))
+            token_type_ids = token_type_ids + [0] * (max_seq_len - len(token_type_ids))
+
+            assert len(input_ids) == len(input_mask) == len(token_type_ids)
 
             # find a valid span for the concept words
             valid_concepts = []
@@ -157,27 +158,38 @@ class MSDDataset(Dataset):
                         )
             features.append(feature)
 
-            if example_idx % 100 == 0:
+            if example_idx % 10000 == 0:
                 logger.info(feature)
         
         assert len(features) == len(examples)
         return features
 
     @staticmethod
-    def find_valid_span(self, tokens, concept_dict, tokenizer):
+    def find_valid_span(tokens, concept_dict, tokenizer):
         '''
         Find a valid span within the tokenized text (i.e., `tokens`) for a given `concept_dict`.
         '''
         concept_term = tokenizer.tokenize(concept_dict["term"])
         tok_offset = len(concept_term)
-        for tok_idx in range(0, len(tokens), tok_offset):
-            if tokens[tok_idx : tok_idx + tok_offset] == concept_term:
+        for tok_idx in range(0, len(tokens)):
+            if tokens[tok_idx : tok_idx + tok_offset] == concept_term:  # Exact match
                 return {"range": [tok_idx, tok_idx + tok_offset],
                         "term": concept_dict["term"],
                         "tokenized_term": concept_term,
                         "cui": concept_dict["cui"]}
 
-        raise AttributeError("Concept word [{}] not found within text.".format(concept_dict["term"]))
+        # In case of different word form (e.g., plural), check if the concept term is a substring
+        reconst_tokens = tokenizer.convert_tokens_to_string(tokens)
+        if concept_dict["term"] in reconst_tokens:
+            for tok_idx in range(0, len(tokens)):
+                if tokens[tok_idx][:len(concept_term[0])].strip() == concept_term[0].strip():
+                    # First word of the concept word(s) match, then return the new `concept_dict`
+                    return {"range": [tok_idx, tok_idx + tok_offset],
+                            "term": concept_dict["term"],
+                            "tokenized_term": concept_term,
+                            "cui": concept_dict["cui"]}
+
+            raise AttributeError("Concept word [{}] [tokenized:{}] not found within text\n[TEXT:\"{}\"].".format(concept_dict["term"], concept_term, tokens))
 
 
 class DatasetIterator(object):

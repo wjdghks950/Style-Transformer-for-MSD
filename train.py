@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import numpy as np
+import neptune
 import logging
 from torch import nn, optim
 from tqdm import tqdm
@@ -62,7 +63,7 @@ def d_step(config, vocab, model_F, model_D, optimizer_D, batch, temperature):
     with torch.no_grad():
         # y = f(x,s)
         raw_gen_log_probs = model_F(
-            inp_tokens, 
+            inp_tokens,
             None,
             inp_lengths,
             raw_styles,
@@ -241,9 +242,9 @@ def train(config, vocab, model_F, model_D, train_iters, dev_iters, test_iters):
     config.save_folder = config.save_path + '/' + str(time.strftime('%b%d%H%M%S', time.localtime()))
     os.makedirs(config.save_folder)
     os.makedirs(config.save_folder + '/ckpts')
-    print('Save Path:', config.save_folder)
+    logger.info('Save Path: {}'.format(config.save_folder))
 
-    print('Model F pretraining......')
+    logger.info('Model F pretraining...')
     for i, batch in enumerate(train_iters):
         if i >= config.F_pretrain_iter:
             break
@@ -258,7 +259,7 @@ def train(config, vocab, model_F, model_D, train_iters, dev_iters, test_iters):
             his_f_cyc_loss = []
             print('[iter: {}] slf_loss:{:.4f}, rec_loss:{:.4f}'.format(i + 1, avrg_f_slf_loss, avrg_f_cyc_loss))
     
-    print('Training start......')
+    logger.info('Initiate Training...')
 
     def calc_temperature(temperature_config, step):
         num = len(temperature_config)
@@ -271,19 +272,20 @@ def train(config, vocab, model_F, model_D, train_iters, dev_iters, test_iters):
                 k = (step - s_a) / (s_b - s_a)
                 temperature = (1 - k) * t_a + k * t_b
                 return temperature
+
     batch_iters = iter(train_iters)
     while True:
         drop_decay = calc_temperature(config.drop_rate_config, global_step)
         temperature = calc_temperature(config.temperature_config, global_step)
         batch = next(batch_iters)
-        
+
         for _ in tqdm(range(config.iter_D)):
             batch = next(batch_iters)
             d_adv_loss = d_step(
                 config, vocab, model_F, model_D, optimizer_D, batch, temperature
             )
             his_d_adv_loss.append(d_adv_loss)
-            
+
         for _ in tqdm(range(config.iter_F)):
             batch = next(batch_iters)
             f_slf_loss, f_cyc_loss, f_adv_loss = f_step(
@@ -292,10 +294,14 @@ def train(config, vocab, model_F, model_D, train_iters, dev_iters, test_iters):
             his_f_slf_loss.append(f_slf_loss)
             his_f_cyc_loss.append(f_cyc_loss)
             his_f_adv_loss.append(f_adv_loss)
-        
+
         global_step += 1
-        #writer.add_scalar('rec_loss', rec_loss.item(), global_step)
-        #writer.add_scalar('loss', loss.item(), global_step)
+        # writer.add_scalar('rec_loss', rec_loss.item(), global_step)
+        # writer.add_scalar('loss', loss.item(), global_step)
+        neptune.log_metric('(Train) Disc. Loss', np.mean(his_d_adv_loss))
+        neptune.log_metric('(Train) Reconstruction Loss', np.mean(his_f_slf_loss))
+        neptune.log_metric('(Train) Cycle Loss', np.mean(his_f_cyc_loss))
+        neptune.log_metric('(Train) Style Loss', np.mean(his_f_adv_loss))
 
         if global_step % config.log_steps == 0:
             avrg_d_adv_loss = np.mean(his_d_adv_loss)
@@ -373,8 +379,8 @@ def auto_eval(config, vocab, model_F, test_iters, global_step, temperature):
 
     gold_text, raw_output, rev_output = zip(inference(neg_iter, 0), inference(pos_iter, 1))
 
-    evaluator = Evaluator()
-    ref_text = evaluator.yelp_ref
+    evaluator = Evaluator(config)
+    # ref_text = evaluator.yelp_ref
 
     # acc_neg = evaluator.yelp_acc_0(rev_output[0])
     # acc_pos = evaluator.yelp_acc_1(rev_output[1])
@@ -385,21 +391,21 @@ def auto_eval(config, vocab, model_F, test_iters, global_step, temperature):
 
     for k in range(5):
         idx = np.random.randint(len(rev_output[0]))
-        print('*' * 20, 'neg sample', '*' * 20)
+        print('*' * 20, 'laymen -> expert sample', '*' * 20)
         print('[gold]', gold_text[0][idx])
         print('[raw ]', raw_output[0][idx])
         print('[rev ]', rev_output[0][idx])
-        print('[ref ]', ref_text[0][idx])
+        # print('[ref ]', ref_text[0][idx])
 
     print('*' * 20, '********', '*' * 20)
     
     for k in range(5):
         idx = np.random.randint(len(rev_output[1]))
-        print('*' * 20, 'pos sample', '*' * 20)
+        print('*' * 20, 'expert -> laymen sample', '*' * 20)
         print('[gold]', gold_text[1][idx])
         print('[raw ]', raw_output[1][idx])
         print('[rev ]', rev_output[1][idx])
-        print('[ref ]', ref_text[1][idx])
+        # print('[ref ]', ref_text[1][idx])
 
     print('*' * 20, '********', '*' * 20)
 

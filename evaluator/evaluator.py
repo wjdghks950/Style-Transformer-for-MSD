@@ -14,7 +14,7 @@ from transformers import BertModel, BertPreTrainedModel
 
 
 class Evaluator(object):
-    def __init__(self):
+    def __init__(self, config):
         resource_package = __name__
 
         # yelp_acc_path = 'acc_yelp.bin'

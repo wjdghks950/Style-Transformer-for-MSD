@@ -79,7 +79,7 @@ class StyleTransformer(nn.Module):
                     next_token = self.embed(log_prob.exp(), pos_idx[:, k:k+1])
                 else:
                     next_token = self.embed(log_prob.argmax(-1), pos_idx[:, k:k+1])
-                #if (pred_tokens == self.eos_idx).max(-1)[0].min(-1)[0].item() == 1:
+                # if (pred_tokens == self.eos_idx).max(-1)[0].min(-1)[0].item() == 1:
                 #    break
 
             log_probs = torch.cat(log_probs, 1)
@@ -160,32 +160,29 @@ class Decoder(nn.Module):
 
     def forward(self, x, memory, src_mask, tgt_mask, temperature):
         y = x
-
         assert y.size(1) == tgt_mask.size(-1)
         
         for layer in self.layers:
             y = layer(y, memory, src_mask, tgt_mask)
 
         return self.generator(self.norm(y), temperature)
+
     def incremental_forward(self, x, memory, src_mask, tgt_mask, temperature, prev_states=None):
         y = x
-
         new_states = []
 
-                                            
         for i, layer in enumerate(self.layers):
             y, new_sub_states = layer.incremental_forward(
                 y, memory, src_mask, tgt_mask,
                 prev_states[i] if prev_states else None
             )
-
             new_states.append(new_sub_states)
         
         new_states.append(torch.cat((prev_states[-1], y), 1) if prev_states else y)
-        y = self.norm(new_states[-1])[:, -1:]
-        
+        y = self.norm(new_states[-1])[:, -1:]        
         return self.generator(y, temperature), new_states
-    
+
+
 class Generator(nn.Module):
     def __init__(self, d_model, vocab_size):
         super(Generator, self).__init__()
@@ -193,6 +190,7 @@ class Generator(nn.Module):
 
     def forward(self, x, temperature):
         return F.log_softmax(self.proj(x) / temperature, dim=-1)
+
 
 class EmbeddingLayer(nn.Module):
     def __init__(self, vocab, d_model, max_length, pad_idx, learned_pos_embed, load_pretrained_embed):
@@ -210,13 +208,14 @@ class EmbeddingLayer(nn.Module):
             y = torch.matmul(x, self.token_embed.weight) + self.pos_embed(pos)
 
         return y
-    
+
+
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, h, dropout):
         super(EncoderLayer, self).__init__()
         self.self_attn = MultiHeadAttention(d_model, h, dropout)
         self.pw_ffn = PositionwiseFeedForward(d_model, dropout)
-        self.sublayer =  nn.ModuleList([SublayerConnection(d_model, dropout) for _ in range(2)])
+        self.sublayer = nn.ModuleList([SublayerConnection(d_model, dropout) for _ in range(2)])
         
     def forward(self, x, mask):
         x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
@@ -250,8 +249,9 @@ class DecoderLayer(nn.Module):
         x = torch.cat((prev_states[2], x), 1) if prev_states else x
         new_states.append(x)
         x = self.sublayer[2].incremental_forward(x, lambda x: self.pw_ffn(x[:, -1:]))
-        return x, new_states  
-   
+        return x, new_states
+
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, h, dropout):
         super(MultiHeadAttention, self).__init__()
@@ -274,6 +274,7 @@ class MultiHeadAttention(nn.Module):
 
         return self.fc(attn_concated)
 
+
 def scaled_attention(query, key, value, mask):
     d_k = query.size(-1)
     scores = query.matmul(key.transpose(-2, -1)) / math.sqrt(d_k)
@@ -282,7 +283,8 @@ def scaled_attention(query, key, value, mask):
     attn_feature = attn_weight.matmul(value)
 
     return attn_feature, attn_weight
-    
+
+
 class PositionwiseFeedForward(nn.Module):
     def __init__(self, d_model, dropout):
         super(PositionwiseFeedForward, self).__init__()
@@ -295,6 +297,7 @@ class PositionwiseFeedForward(nn.Module):
         
     def forward(self, x):
         return self.mlp(x)
+
 
 class SublayerConnection(nn.Module):
     def __init__(self, d_model, dropout):
@@ -309,7 +312,8 @@ class SublayerConnection(nn.Module):
     def incremental_forward(self, x, sublayer):
         y = sublayer(self.layer_norm(x))
         return x[:, -1:] + self.dropout(y)
-    
+
+
 def Linear(in_features, out_features, bias=True, uniform=True):
     m = nn.Linear(in_features, out_features, bias)
     if uniform:
@@ -320,11 +324,13 @@ def Linear(in_features, out_features, bias=True, uniform=True):
         nn.init.constant_(m.bias, 0.)
     return m
 
+
 def Embedding(num_embeddings, embedding_dim, padding_idx=None):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
     nn.init.xavier_uniform_(m.weight)
     nn.init.constant_(m.weight[padding_idx], 0)
     return m
+
 
 def LayerNorm(embedding_dim, eps=1e-6):
     m = nn.LayerNorm(embedding_dim, eps)

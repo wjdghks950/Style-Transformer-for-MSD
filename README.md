@@ -1,19 +1,24 @@
-# Style Transformer for Expert-Laymen Style Transfer (on MSD Dataset)
+# Style Transformer for Expert-Laymen Style Transfer (MSD Dataset)
 
-This repository contains the codes for the paper [Style Transformer: Unpaired Text Style Transfer without Disentangled Latent Representation](https://arxiv.org/abs/1905.05621).
+This repository contains the codes for **Style Transformer for Expert-Laymen Style Transfer**. The Style Transfer task requires mapping a source language (e.g., expert) to a target language (e.g., laymen).
 
-The code has been revised to incorporate and train on the expert-laymen style transfer task dataset ([MSD dataset](https://aclanthology.org/2020.acl-main.100.pdf)).
+An illustration is given in the ([MSD dataset](https://aclanthology.org/2020.acl-main.100.pdf)), where a sentence composed of expert-level terminologies is converted to an easily understandable, "laymen" sentence.
 
-The following are the revisions made to the existing code base:
-1. Code refactoring to deal with each data instance and feature on a class-level (e.g., `MSDFeature`, `MSDExample`).
-2. Fine-tuned BERT-base model (`bert-base-uncased`) on the MSD training dataset to measure the **Style Accuracy** of the style-transferred sentence. This replaces the `fasttext` classifier originally used in the baseline code.
+This repository builds upon [Style Transformer: Unpaired Text Style Transfer without Disentangled Latent Representation](https://arxiv.org/abs/1905.05621), where the Transformer's self-attention-powered style transfer model is proposed.
+
+Our work processes the expert style transfer dataset (i.e., MSD dataset) to convert expert language into the corresponding laymen language using the Style Transformer model.
+
+This repository is composed of the following:
+1. Implementation of `MSDFeatures` and `MSDExample` classes to integrate MSD dataset into the codebase.
+2. A separately fine-tuned BERT-base model (`bert-base-uncased`) on the MSD training dataset to measure the **Style Accuracy** of the style-transferred sentence. This replaces the `fasttext` classifier originally used in the baseline code.
 3. Replaced `kenlm` with the `torch.exp(loss)` to calculate the perplexity of the generated sentence.
 
 ## Requirements
-
-pytorch >= 0.4.0
-torchtext >= 0.4.0
-nltk
+```
+	pytorch >= 0.4.0
+	torchtext >= 0.4.0
+	nltk
+```
 
 ## Usage
 
@@ -54,17 +59,17 @@ You can adjust them in the Config class from the ''main.py''.
 If you want to run the original Style Transformer model on Yelp and IMDB, use the following command:
 
 ```shell
-$ ./train.sh 0
+	$ ./train.sh [gpu_id]
 ```
-(0 simply stands for the CUDA gpu id (if there is one in your system))
 
-If you want to run the revised, MSD-version of Style Transformer model on MSD dataset, use the following command:
+If you want to run the MSD-version of Style Transformer model on MSD dataset, use the following command:
 
-```shell
-$ ./msd_train.sh 0
+```
+	$ ./msd_train.sh 0
 ```
 
 
 ## Outputs
 
 Update: You can find the outputs of our model in the "outputs" folder.
+

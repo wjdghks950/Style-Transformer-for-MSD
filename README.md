@@ -58,14 +58,20 @@ You can adjust them in the Config class from the ''main.py''.
 
 If you want to run the original Style Transformer model on Yelp and IMDB, use the following command:
 
-```shell
-	$ ./train.sh [gpu_id]
 ```
+    $ ./train.sh [gpu_id]
+```
+
+If you want to run the MSD-version of Style Transformer model on MSD dataset, make sure to unzip the following in the `data` directory as follows:
+```
+    $ unzip ./data/'MSD Dataset.zip'
+```
+
 
 If you want to run the MSD-version of Style Transformer model on MSD dataset, use the following command:
 
 ```
-	$ ./msd_train.sh 0
+    $ ./msd_train.sh 0
 ```
 
 

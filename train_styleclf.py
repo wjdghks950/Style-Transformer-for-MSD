@@ -86,6 +86,8 @@ class Trainer(object):
                     loss = loss / self.args.gradient_accumulation_steps
                 loss.backward()
 
+                loss = loss / self.args.gradient_accumulation_steps  # normalize loss to account for batch accumulation
+
                 tr_loss += loss.item()
                 tr_ppl += torch.exp(loss)  # Calculate perplexity for every step
 
@@ -97,12 +99,12 @@ class Trainer(object):
                     self.model.zero_grad()
                     global_step += 1
 
-                    neptune.log_metric('(Train) Loss', tr_loss / global_step)
-                    neptune.log_metric('(Train) Perplexity', tr_ppl / global_step)
+                    neptune.log_metric('(Train) Loss', tr_loss)
+                    neptune.log_metric('(Train) Perplexity', tr_ppl)
 
                     if self.args.logging_steps > 0 and global_step % self.args.logging_steps == 0:
-                        logger.info('(Train) Loss: %f', tr_loss / global_step)
-                        logger.info('(Train) Perplexity: %f', tr_ppl / global_step)
+                        logger.info('(Train) Loss: %f', tr_loss)
+                        logger.info('(Train) Perplexity: %f', tr_ppl)
                         self.evaluate("test")
                         self.save_model()
 
